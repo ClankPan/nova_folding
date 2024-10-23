@@ -1,0 +1,26 @@
+[package]
+name = "nova-sha2"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+ark-std = "0.4.0"
+ark-ff = "0.4.0"
+ark-ec = { version = "0.4.0", default-features = false }
+ark-poly = "0.4.0"
+ark-serialize = { version = "0.4.0", default-features = false, features = [ "derive" ] }
+rand = { version = "0.8", features = [ "std", "std_rng" ] }
+merlin = { version = "3.0.0" }
+
+ark-crypto-primitives = { version = "^0.4.0", default-features = false, features = [ "r1cs", "snark", "sponge", "crh" ] }
+ark-r1cs-std = { version = "^0.4.0", default-features = false }
+ark-relations = { version = "^0.4.0", default-features = false }
+ark-snark = { version = "^0.4.0", default-features = false }
+tracing = { version = "0.1", default-features = false, features = [ "attributes" ] }
+tracing-subscriber = { version = "0.2" }
+derivative = { version = "2.0", features = ["use_core"] }
+
+[dev-dependencies]
+ark-mnt4-298 = { version = "0.4.0", default-features = false, features=["curve", "r1cs"] }
+ark-mnt6-298 = { version = "0.4.0", default-features = false, features=["r1cs"] }
+ark-ed-on-mnt4-298 = { version = "0.4.0", default-features = false, features=["r1cs"] }
