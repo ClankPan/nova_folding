@@ -9,3 +9,5 @@ pub mod utils;
 pub mod transcript;
 pub mod pedersen;
 pub mod nifs;
+pub mod circuits;
+pub mod ivc;
