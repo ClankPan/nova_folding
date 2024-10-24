@@ -342,6 +342,51 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for TestFCircuit<F> {
     }
 }
 
+// Example for SHA256
+// impl<F: PrimeField> ConstraintSynthesizer<F> for TestFCircuit<F> {
+//     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
+//         // Allocate initial IV as public inputs
+//         let mut prev_hash = Vec::new();
+//         for byte in self.initial_iv.iter() {
+//             let byte_var = UInt8::new_input(cs.clone(), || Ok(*byte))?;
+//             prev_hash.push(byte_var);
+//         }
+
+//         // Initialize SHA256 gadget
+//         let sha256_gadget = SHA256Gadget::<F>::new();
+
+//         // Iterate over each message and apply SHA256
+//         for message in self.messages.iter() {
+//             // Allocate the message block as private inputs
+//             let mut msg_vars = Vec::new();
+//             for byte in message.iter() {
+//                 let byte_var = UInt8::new_witness(cs.clone(), || Ok(*byte))?;
+//                 msg_vars.push(byte_var);
+//             }
+
+//             // Concatenate previous hash and current message
+//             let mut input = Vec::new();
+//             input.extend(prev_hash.iter().cloned());
+//             input.extend(msg_vars.iter().cloned());
+
+//             // Apply SHA256 gadget
+//             let new_hash = sha256_gadget.evaluate(&input)?;
+
+//             // Set the new_hash as the previous hash for the next iteration
+//             prev_hash = new_hash;
+//         }
+
+//         // Allocate the final hash as public inputs
+//         for (i, byte_var) in prev_hash.iter().enumerate() {
+//             byte_var.enforce_equal(&UInt8::new_input(cs.clone(), || {
+//                 Err(SynthesisError::AssignmentMissing)
+//             })?)?;
+//         }
+
+//         Ok(())
+//     }
+// }
+
 #[cfg(test)]
 mod test {
     use super::*;
