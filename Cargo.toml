@@ -1,5 +1,5 @@
 [package]
-name = "nova-sha2"
+name = "nova-folding"
 version = "0.0.1"
 edition = "2021"
 
