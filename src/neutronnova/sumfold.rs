@@ -110,26 +110,29 @@ where
         let f_b_x_sum = vec![f_b_x_sum_j; F_poly.num_vars()];
 
         // 3. Q(b) = eq(rho, b) * (\sum F(f_1(b,x), ..., f_t(b,x)))
-        let mut Q_b = Self::eq(*rho, *b);
+        let Q_b = Self::eq(*rho, *b);
         if Q_b == F::zero() {
             return (T_sum, Q_b);
         }
 
         let l = x.len();
-        for x_val in 0..(1 << l) {
-            let mut f_values = vec![F::zero(); f_b_x_sum.len()];
-            for j in 0..f_b_x_sum.len() {
+        let Q_b = (0..(1 << l)).into_par_iter().map(|x_val| {
+            let f_values = f_b_x_sum.par_iter().enumerate().map(|(j, f_b_x_sum_j)| {
                 let bit = if (x_val >> j) & 1 == 1 {
                     F::one()
                 } else {
                     F::zero()
                 };
-                f_values[j] = f_b_x_sum[j] * bit;
-            }
+                *f_b_x_sum_j * bit
+            }).collect();
+            
 
             // f_valuesをVec<F>として評価
-            Q_b += F_poly.evaluate(&f_values);
-        }
+            F_poly.evaluate(&f_values)
+        }).reduce(
+            || Q_b,
+            |acc, item| acc + item
+        );
 
         (T_sum, Q_b)
     }
