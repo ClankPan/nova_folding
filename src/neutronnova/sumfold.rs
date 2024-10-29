@@ -151,14 +151,23 @@ where
         let T_prime = c * Self::eq(rho, rb);
 
         // u' = \sum eq(rb, i) * u_i
-        let mut u_prime = vec![F::zero(); u[0].len()];
         let nu = u.len();
-        for j in 0..u[0].len() {
-            for i in 0..nu {
-                let i_val = F::from(i as u64);
-                u_prime[j] += Self::eq(rb, i_val) * u[i][j];
-            }
-        }
+        let u_prime = (0..u[0].len())
+            .into_par_iter()
+            .map(|j| {
+                (0..nu)
+                    .into_par_iter()
+                    .map(|i| {
+                        let i_val = F::from(i as u64);
+                        Self::eq(rb, i_val) * u[i][j]
+                    })
+                    .reduce(
+                        || F::zero(),
+                        |acc, item| acc + item
+                    )
+            })
+            .collect(); 
+
 
         // x' = \sum eq(rb, i) * x_i
         let mut x_prime = F::zero();
