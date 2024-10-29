@@ -137,7 +137,7 @@ where
         UV::from_coefficients_vec(univ_coeffs)
     }
 
-    pub fn prove(poseidon_config: &PoseidonConfig<F>, g: MV) -> (F, Vec<UV>, F)
+    pub fn prove(poseidon_config: &PoseidonConfig<F>, g: MV) -> (F, Vec<UV>, F, Vec<F>, Vec<F>)
     where
         <MV as Polynomial<F>>::Point: From<Vec<F>>,
     {
@@ -173,17 +173,22 @@ where
             ss.push(s_i);
         }
 
-        let last_g_eval = g.evaluate(&r.into());
+        let last_g_eval = g.evaluate(&r.clone().into());
+
+        // w と x を r から分割する
+        let w = r[..v / 2].to_vec(); // wはrの前半部分
+        let x = r[v / 2..].to_vec(); // xはrの後半部分
+
         // ss: intermediate univariate polynomials
-        (T, ss, last_g_eval)
+        (T, ss, last_g_eval, w, x)
     }
 
-    pub fn verify(poseidon_config: &PoseidonConfig<F>, proof: (F, Vec<UV>, F)) -> bool {
+    pub fn verify(poseidon_config: &PoseidonConfig<F>, proof: (F, Vec<UV>, F, Vec<F>, Vec<F>)) -> bool {
         // init transcript
         let mut transcript = Transcript::<F, C>::new(poseidon_config);
         transcript.add(&proof.0);
 
-        let (c, ss, last_g_eval) = proof;
+        let (c, ss, last_g_eval, _, _) = proof;
 
         let mut r: Vec<F> = vec![];
         for (i, s) in ss.iter().enumerate() {

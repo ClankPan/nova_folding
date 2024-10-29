@@ -38,7 +38,7 @@ impl<
     F: PrimeField + Absorb,
     C: CurveGroup,
     UV: Polynomial<F> + DenseUVPolynomial<F>,
-    MV: Polynomial<F> + DenseMVPolynomial<F, Point = Vec<F>>, // 型制約の追加
+    MV: Polynomial<F> + DenseMVPolynomial<F, Point = Vec<F>>,
 > SumFold<F, C, UV, MV>
 where
     <C as CurveGroup>::BaseField: Absorb,
@@ -170,7 +170,7 @@ where
         (T_prime, u_prime, vec![x_prime], w_prime)
     }
 
-    /// aとbが等しいかをチェックする関数
+    /// check if a == b
     fn eq(a: F, b: F) -> F {
         if a == b {
             F::one()
@@ -185,23 +185,27 @@ mod tests {
     use super::*;
     use crate::neutronnova::sumcheck::SumCheck;
     use crate::transcript::poseidon_test_config;
-    use ark_mnt4_298::{Fr, G1Projective}; // scalar field
+    use ark_mnt4_298::{Fr, G1Projective};
     use ark_poly::{
         multivariate::{SparsePolynomial, SparseTerm, Term},
         univariate::DensePolynomial,
         DenseMVPolynomial,
+        Polynomial,
     };
-    use ark_std::{rand::Rng, UniformRand};
+    use ark_std::{rand::Rng, UniformRand, One};
 
-    fn rand_poly<R: Rng>(l: usize, d: usize, rng: &mut R) -> SparsePolynomial<Fr, SparseTerm> {
-        // This method is from the arkworks/algebra/poly/multivariate test:
-        // https://github.com/arkworks-rs/algebra/blob/bc991d44c5e579025b7ed56df3d30267a7b9acac/poly/src/polynomial/multivariate/sparse.rs#L303
-        let mut random_terms = Vec::new();
-        let num_terms = rng.gen_range(1..1000);
-        // For each term, randomly select up to `l` variables with degree
-        // in [1,d] and random coefficient
-        random_terms.push((Fr::rand(rng), SparseTerm::new(vec![])));
-        for _ in 1..num_terms {
+    fn rand_poly<R: Rng>(
+        l: usize,
+        d: usize,
+        rng: &mut R,
+    ) -> (
+        SparsePolynomial<Fr, SparseTerm>,
+        SparsePolynomial<Fr, SparseTerm>,
+        SparsePolynomial<Fr, SparseTerm>,
+    ) {
+        let mut g1_terms = Vec::new();
+        let num_g1_terms = rng.gen_range(1..100);
+        for _ in 0..num_g1_terms {
             let term = (0..l)
                 .map(|i| {
                     if rng.gen_bool(0.5) {
@@ -213,51 +217,78 @@ mod tests {
                 .flatten()
                 .collect();
             let coeff = Fr::rand(rng);
-            random_terms.push((coeff, SparseTerm::new(term)));
+            g1_terms.push((coeff, SparseTerm::new(term)));
         }
-        SparsePolynomial::from_coefficients_slice(l, &random_terms)
+        let g1 = SparsePolynomial::from_coefficients_slice(l, &g1_terms);
+
+        let mut f1_terms = Vec::new();
+        let num_f1_terms = rng.gen_range(1..100);
+        for _ in 0..num_f1_terms {
+            let term = (0..l)
+                .map(|i| {
+                    if rng.gen_bool(0.5) {
+                        Some((i, rng.gen_range(1..(d + 1))))
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .collect();
+            let coeff = Fr::rand(rng);
+            f1_terms.push((coeff, SparseTerm::new(term)));
+        }
+        let f1 = SparsePolynomial::from_coefficients_slice(l, &f1_terms);
+
+        // q1 = f1(g1(x, w))
+        let mut composed_terms = Vec::new();
+        for (g_coeff, g_term) in g1.terms() {
+            let f1_evaluated = f1
+                .terms()
+                .iter()
+                .map(|(f_coeff, f_term)| {
+                    let new_coeff = *f_coeff * *g_coeff;
+                    let new_term = f_term.clone();
+                    (new_coeff, new_term)
+                })
+                .collect::<Vec<_>>();
+
+            composed_terms.extend(f1_evaluated);
+        }
+        let q1 = SparsePolynomial::from_coefficients_slice(l, &composed_terms);
+
+        (q1, f1, g1)
     }
 
     #[test]
-    fn test_fold_and_verify_sumcheck() {
+    fn test_fold_two_different_sumchecks() {
         let mut rng = ark_std::test_rng();
+        let poseidon_config = poseidon_test_config::<Fr>();
 
-        // 1つ目のランダムな多項式を生成
-        let g1 = rand_poly(3, 3, &mut rng);
-        let f1 = rand_poly(3, 2, &mut rng);
-
-        // 2つ目のランダムな多項式を生成
-        let g2 = rand_poly(3, 3, &mut rng);
-        let f2 = rand_poly(3, 2, &mut rng);
-
-        // SumCheckRelationの生成
-        let T1 = Fr::rand(&mut rng);
+        let (q1, g1, f1) = rand_poly(3, 3, &mut rng);
+        let (T1, _, _, w1, x1) = SumCheck::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::prove(
+            &poseidon_test_config::<Fr>(),
+            q1.clone(),
+        );
         let u1 = vec![Fr::rand(&mut rng); 3];
-        let x1 = vec![Fr::rand(&mut rng)];
-        let w1 = vec![Fr::rand(&mut rng); 3];
         let sc1 = SumCheckRelation::new(T1, u1, x1, w1, g1, f1);
 
-        let T2 = Fr::rand(&mut rng);
+        let (q2, g2, f2) = rand_poly(3, 3, &mut rng);
+        let (T2, _, _, w2, x2) = SumCheck::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::prove(
+            &poseidon_test_config::<Fr>(),
+            q2.clone(),
+        );
         let u2 = vec![Fr::rand(&mut rng); 3];
-        let x2 = vec![Fr::rand(&mut rng)];
-        let w2 = vec![Fr::rand(&mut rng); 3];
         let sc2 = SumCheckRelation::new(T2, u2, x2, w2, g2, f2);
 
-        // 2つのSumCheckRelationを畳み込む
         let folded_sc = SumFold::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::fold_two_sc(
             sc1,
             sc2,
         );
 
-        // Poseidon設定の取得
-        let poseidon_config = poseidon_test_config::<Fr>();
-        
-        // 畳み込んだ多項式でSumCheckを実行
         type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
         let proof = SC::prove(&poseidon_config, folded_sc.g.clone());
 
-        // SumCheckの検証を実行
         let verification_result = SC::verify(&poseidon_config, proof);
-        assert!(verification_result, "Folded SumCheckRelation failed verification");
+        assert!(verification_result, "Folded different SumCheckRelation failed verification");
     }
 }
