@@ -190,7 +190,6 @@ mod tests {
         multivariate::{SparsePolynomial, SparseTerm, Term},
         univariate::DensePolynomial,
         DenseMVPolynomial,
-        Polynomial,
     };
     use ark_std::{rand::Rng, UniformRand, One};
 
@@ -241,7 +240,7 @@ mod tests {
 
         // q1 = f1(g1(x, w))
         let mut composed_terms = Vec::new();
-        for (g_coeff, g_term) in g1.terms() {
+        for (g_coeff, _g_term) in g1.terms() {
             let f1_evaluated = f1
                 .terms()
                 .iter()
@@ -286,7 +285,9 @@ mod tests {
         );
 
         type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
-        let proof = SC::prove(&poseidon_config, folded_sc.g.clone());
+        let proof = SC::prove(&poseidon_config, q1.clone());
+
+        assert_eq!(proof.0, folded_sc.T, "Folded different SumCheckRelation failed T equality check");
 
         let verification_result = SC::verify(&poseidon_config, proof);
         assert!(verification_result, "Folded different SumCheckRelation failed verification");
