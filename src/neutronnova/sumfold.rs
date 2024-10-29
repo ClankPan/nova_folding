@@ -93,18 +93,21 @@ where
         );
 
         // 2. f_j(b, x) = \sum eq(i, b) * g_i,j(x)
-        let mut f_b_x_sum = vec![F::zero(); F_poly.num_vars()];
-        for i in 0..nu {
+        let f_b_x_sum_j = (0..nu).into_par_iter().map(|i| {
             let i_val = F::from(i as u64);
-
             // G_i の評価
             let g_i_eval = G[i].evaluate(&[w[i].clone(), x.to_vec()].concat()); // wとxを連結して評価
 
             // f_j(b, x)の計算
-            for j in 0..f_b_x_sum.len() {
-                f_b_x_sum[j] += Self::eq(i_val, *b) * g_i_eval; // インデックスなしの演算に修正
-            }
-        }
+            // for j in 0..f_b_x_sum.len() {
+            //     f_b_x_sum[j] += Self::eq(i_val, *b) * g_i_eval; // インデックスなしの演算に修正
+            // }
+            Self::eq(i_val, *b) * g_i_eval // インデックスなしの演算に修正
+        }).reduce(
+            || F::zero(),
+            |acc, item| acc + item
+        );
+        let f_b_x_sum = vec![f_b_x_sum_j; F_poly.num_vars()];
 
         // 3. Q(b) = eq(rho, b) * (\sum F(f_1(b,x), ..., f_t(b,x)))
         let mut Q_b = Self::eq(*rho, *b);
