@@ -3,7 +3,7 @@ use ark_ec::{CurveGroup, Group};
 use ark_ff::{Field, PrimeField};
 use std::marker::PhantomData;
 
-use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig};
+use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
 use ark_r1cs_std::{groups::GroupOpsBounds, prelude::CurveVar};
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 
@@ -12,7 +12,7 @@ use crate::nifs::{FWit, Phi, NIFS, R1CS};
 use crate::pedersen::{Commitment, Params as PedersenParams, Pedersen};
 use crate::transcript::Transcript;
 
-use ark_std::{One};
+use ark_std::One;
 use core::ops::Deref;
 
 pub struct IVCProof<C1: CurveGroup, C2: CurveGroup> {

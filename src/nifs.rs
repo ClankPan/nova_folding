@@ -23,16 +23,16 @@ pub struct R1CS<F: PrimeField> {
 #[derive(Clone, Debug)]
 pub struct Phi<C: CurveGroup> {
     pub cmE: Commitment<C>, // Committed E
-    pub u: C::ScalarField, // Randomness (transcript)
+    pub u: C::ScalarField,  // Randomness (transcript)
     pub cmW: Commitment<C>, // Committed W
-    pub x: C::ScalarField, // Public Input
+    pub x: C::ScalarField,  // Public Input
 }
 
 pub struct FWit<C: CurveGroup> {
     pub E: Vec<C::ScalarField>, // Error Vector
-    pub rE: C::ScalarField, // Randomness for E
+    pub rE: C::ScalarField,     // Randomness for E
     pub W: Vec<C::ScalarField>, // Witness
-    pub rW: C::ScalarField, // Randomness for W
+    pub rW: C::ScalarField,     // Randomness for W
 }
 
 impl<C: CurveGroup> FWit<C>
@@ -43,7 +43,7 @@ where
     pub fn new(z: Vec<C::ScalarField>, e_len: usize) -> Self {
         FWit::<C> {
             E: vec![C::ScalarField::zero(); e_len],
-            rE: C:: ScalarField::one(), // TODO rand
+            rE: C::ScalarField::one(), // TODO rand
             W: z,
             rW: C::ScalarField::one(), // TODO rand
         }
@@ -137,7 +137,7 @@ where
         let u = phi1.u + r * phi2.u;
         let cmW = phi1.cmW.0 + phi2.cmW.0.mul(r);
         let x = phi1.x + r * phi2.x;
-        
+
         Phi::<C> {
             cmE: Commitment(cmE),
             u,

@@ -5,11 +5,11 @@
 // #![allow(unused)] // TMP
 #![allow(dead_code)] // TMP
 
-pub mod utils;
-pub mod transcript;
-pub mod pedersen;
-pub mod nifs;
 pub mod circuits;
 pub mod ivc;
+pub mod nifs;
+pub mod pedersen;
+pub mod transcript;
+pub mod utils;
 
 pub mod neutronnova;

@@ -96,7 +96,7 @@ pub struct NIFSGadget<C: CurveGroup, GC: CurveVar<C, ConstraintF<C>>> {
     _gc: PhantomData<GC>,
 }
 
-impl<C: CurveGroup, GC: CurveVar<C, ConstraintF<C>>> NIFSGadget<C, GC> 
+impl<C: CurveGroup, GC: CurveVar<C, ConstraintF<C>>> NIFSGadget<C, GC>
 where
     C: CurveGroup,
     GC: CurveVar<C, ConstraintF<C>>,
@@ -150,12 +150,12 @@ pub struct AugmentedFCircuit<
     pub z_0: Option<C::BaseField>,
     pub z_i: Option<C::BaseField>,
     pub z_i1: Option<C::BaseField>, // z_{i+1} output of the circuit
-    pub phi: Option<Phi<C>>, // φ_i
-    pub phiBig: Option<Phi<C>>, // Φ_{i+1}
-    pub phiBigOut: Option<Phi<C>>, // Φ_{i+1} output of the circuit
+    pub phi: Option<Phi<C>>,        // φ_i
+    pub phiBig: Option<Phi<C>>,     // Φ_{i+1}
+    pub phiBigOut: Option<Phi<C>>,  // Φ_{i+1} output of the circuit
     pub cmT: Option<C>,
     pub r: Option<C::ScalarField>,
-    pub F: FC, // F circuit
+    pub F: FC,             // F circuit
     pub x: ConstraintF<C>, // public input x
 }
 
@@ -190,7 +190,7 @@ where
 
         let x = FpVar::<ConstraintF<C>>::new_input(cs.clone(), || Ok(self.x))?;
 
-        // if i=0, output φ_{i+1}.x, 
+        // if i=0, output φ_{i+1}.x,
         // phiOut.x = H(vk_nifs, 1, z_0, z_i1, Φ_{i+1})
         let phiOut_x_first_iter = AugmentedFCircuit::<C, GC, FC>::phi_x_hash_var(
             cs.clone(),
@@ -237,7 +237,6 @@ where
         Ok(())
     }
 }
-
 
 impl<C: CurveGroup, GC: CurveVar<C, ConstraintF<C>>, FC: FCircuit<ConstraintF<C>>>
     AugmentedFCircuit<C, GC, FC>
@@ -318,7 +317,6 @@ where
         x_bytes
     }
 }
-
 
 #[derive(Clone, Copy, Debug)]
 pub struct TestFCircuit<F: PrimeField> {

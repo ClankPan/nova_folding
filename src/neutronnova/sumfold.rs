@@ -1,19 +1,17 @@
+use ark_crypto_primitives::sponge::Absorb;
 use ark_ec::CurveGroup;
 use ark_ff::PrimeField;
-use ark_poly::{
-    DenseMVPolynomial, DenseUVPolynomial, Polynomial,
-};
-use ark_crypto_primitives::sponge::Absorb;
+use ark_poly::{DenseMVPolynomial, DenseUVPolynomial, Polynomial};
 use rayon::prelude::*;
 
 // SumCheckRelation構造体の定義
 pub struct SumCheckRelation<F: PrimeField, MV: DenseMVPolynomial<F>> {
-    pub T: F,          // Sum T
-    pub u: Vec<F>,     // instance u
-    pub x: Vec<F>,     // input x
-    pub w: Vec<F>,     // witness w
-    pub g: MV,         // multilinear polynomial g
-    pub f: MV,         // polynomial f
+    pub T: F,      // Sum T
+    pub u: Vec<F>, // instance u
+    pub x: Vec<F>, // input x
+    pub w: Vec<F>, // witness w
+    pub g: MV,     // multilinear polynomial g
+    pub f: MV,     // polynomial f
 }
 
 impl<F: PrimeField, MV: DenseMVPolynomial<F>> SumCheckRelation<F, MV> {
@@ -36,11 +34,11 @@ pub struct SumFold<
 }
 
 impl<
-    F: PrimeField + Absorb,
-    C: CurveGroup,
-    UV: Polynomial<F> + DenseUVPolynomial<F>,
-    MV: Polynomial<F> + DenseMVPolynomial<F, Point = Vec<F>>, // 型制約の追加
-> SumFold<F, C, UV, MV>
+        F: PrimeField + Absorb,
+        C: CurveGroup,
+        UV: Polynomial<F> + DenseUVPolynomial<F>,
+        MV: Polynomial<F> + DenseMVPolynomial<F, Point = Vec<F>>, // 型制約の追加
+    > SumFold<F, C, UV, MV>
 where
     <C as CurveGroup>::BaseField: Absorb,
 {
@@ -64,12 +62,18 @@ where
         let (c, r_b) = Self::compute_c_r(&rho, &b, &T_vec, &G_vec, &F_poly, &x_vec, &w_vec);
 
         // インスタンスと証拠の畳み込み
-        let (T_prime, u_prime, x_prime, w_prime) = Self::compute_instance_witness_pair(
-            c, rho, r_b, u_vec, x_vec, w_vec
-        );
+        let (T_prime, u_prime, x_prime, w_prime) =
+            Self::compute_instance_witness_pair(c, rho, r_b, u_vec, x_vec, w_vec);
 
         // 新しいSumCheckRelationを返す
-        SumCheckRelation::new(T_prime, u_prime, x_prime, w_prime, sc1.g.clone(), sc1.f.clone())
+        SumCheckRelation::new(
+            T_prime,
+            u_prime,
+            x_prime,
+            w_prime,
+            sc1.g.clone(),
+            sc1.f.clone(),
+        )
     }
 
     /// 2. Compute (c, rb)
@@ -84,29 +88,26 @@ where
     ) -> (F, F) {
         // 1. T = \sum eq(i, rho) * T_i
         let nu = T.len();
-        let T_sum = (0..nu).into_par_iter().map(|i| {
-            let i_val = F::from(i as u64);
-            Self::eq(i_val, *rho) * T[i]
-        }).reduce(
-            || F::zero(),  
-            |acc, item| acc + item
-        );
+        let T_sum = (0..nu)
+            .into_par_iter()
+            .map(|i| {
+                let i_val = F::from(i as u64);
+                Self::eq(i_val, *rho) * T[i]
+            })
+            .reduce(|| F::zero(), |acc, item| acc + item);
 
         // 2. f_j(b, x) = \sum eq(i, b) * g_i,j(x)
-        let f_b_x_sum_j = (0..nu).into_par_iter().map(|i| {
-            let i_val = F::from(i as u64);
-            // G_i の評価
-            let g_i_eval = G[i].evaluate(&[w[i].clone(), x.to_vec()].concat()); // wとxを連結して評価
+        let f_b_x_sum_j = (0..nu)
+            .into_par_iter()
+            .map(|i| {
+                let i_val = F::from(i as u64);
+                // G_i の評価
+                let g_i_eval = G[i].evaluate(&[w[i].clone(), x.to_vec()].concat()); // wとxを連結して評価
 
-            // f_j(b, x)の計算
-            // for j in 0..f_b_x_sum.len() {
-            //     f_b_x_sum[j] += Self::eq(i_val, *b) * g_i_eval; // インデックスなしの演算に修正
-            // }
-            Self::eq(i_val, *b) * g_i_eval // インデックスなしの演算に修正
-        }).reduce(
-            || F::zero(),
-            |acc, item| acc + item
-        );
+                // f_j(b, x)の計算
+                Self::eq(i_val, *b) * g_i_eval // インデックスなしの演算に修正
+            })
+            .reduce(|| F::zero(), |acc, item| acc + item);
         let f_b_x_sum = vec![f_b_x_sum_j; F_poly.num_vars()];
 
         // 3. Q(b) = eq(rho, b) * (\sum F(f_1(b,x), ..., f_t(b,x)))
@@ -116,23 +117,26 @@ where
         }
 
         let l = x.len();
-        let Q_b = (0..(1 << l)).into_par_iter().map(|x_val| {
-            let f_values = f_b_x_sum.par_iter().enumerate().map(|(j, f_b_x_sum_j)| {
-                let bit = if (x_val >> j) & 1 == 1 {
-                    F::one()
-                } else {
-                    F::zero()
-                };
-                *f_b_x_sum_j * bit
-            }).collect();
-            
+        let Q_b = (0..(1 << l))
+            .into_par_iter()
+            .map(|x_val| {
+                let f_values = f_b_x_sum
+                    .par_iter()
+                    .enumerate()
+                    .map(|(j, f_b_x_sum_j)| {
+                        let bit = if (x_val >> j) & 1 == 1 {
+                            F::one()
+                        } else {
+                            F::zero()
+                        };
+                        *f_b_x_sum_j * bit
+                    })
+                    .collect();
 
-            // f_valuesをVec<F>として評価
-            F_poly.evaluate(&f_values)
-        }).reduce(
-            || Q_b,
-            |acc, item| acc + item
-        );
+                // f_valuesをVec<F>として評価
+                F_poly.evaluate(&f_values)
+            })
+            .reduce(|| Q_b, |acc, item| acc + item);
 
         (T_sum, Q_b)
     }
@@ -161,13 +165,9 @@ where
                         let i_val = F::from(i as u64);
                         Self::eq(rb, i_val) * u[i][j]
                     })
-                    .reduce(
-                        || F::zero(),
-                        |acc, item| acc + item
-                    )
+                    .reduce(|| F::zero(), |acc, item| acc + item)
             })
-            .collect(); 
-
+            .collect();
 
         // x' = \sum eq(rb, i) * x_i
         let mut x_prime = F::zero();
@@ -175,24 +175,27 @@ where
             let i_val = F::from(i as u64);
             x_prime += Self::eq(rb, i_val) * x[i];
         }
-        let x_prime = (0..x.len()).into_par_iter().map(|i| {
-            let i_val = F::from(i as u64);
-            Self::eq(rb, i_val) * x[i]
-        }).reduce(
-            || F::zero(),  
-            |acc, item| acc + item
-        );
+        let x_prime = (0..x.len())
+            .into_par_iter()
+            .map(|i| {
+                let i_val = F::from(i as u64);
+                Self::eq(rb, i_val) * x[i]
+            })
+            .reduce(|| F::zero(), |acc, item| acc + item);
 
         // w' = \sum eq(rb, i) * w_i
-        let w_prime = (0..w[0].len()).into_par_iter().map(|j| {
-            (0..nu).into_par_iter().map(|i| {
-                let i_val = F::from(i as u64);
-                Self::eq(rb, i_val) * w[i][j]
-            }).reduce(
-                || F::zero(),  
-                |acc, item| acc + item
-            )
-        }).collect();
+        let w_prime = (0..w[0].len())
+            .into_par_iter()
+            .map(|j| {
+                (0..nu)
+                    .into_par_iter()
+                    .map(|i| {
+                        let i_val = F::from(i as u64);
+                        Self::eq(rb, i_val) * w[i][j]
+                    })
+                    .reduce(|| F::zero(), |acc, item| acc + item)
+            })
+            .collect();
 
         (T_prime, u_prime, vec![x_prime], w_prime)
     }
@@ -271,20 +274,25 @@ mod tests {
         let sc2 = SumCheckRelation::new(T2, u2, x2, w2, g2, f2);
 
         // 2つのSumCheckRelationを畳み込む
-        let folded_sc = SumFold::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::fold_two_sc(
-            sc1,
-            sc2,
-        );
+        let folded_sc = SumFold::<
+            Fr,
+            G1Projective,
+            DensePolynomial<Fr>,
+            SparsePolynomial<Fr, SparseTerm>,
+        >::fold_two_sc(sc1, sc2);
 
         // Poseidon設定の取得
         let poseidon_config = poseidon_test_config::<Fr>();
-        
+
         // 畳み込んだ多項式でSumCheckを実行
         type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
         let proof = SC::prove(&poseidon_config, folded_sc.g.clone());
 
         // SumCheckの検証を実行
         let verification_result = SC::verify(&poseidon_config, proof);
-        assert!(verification_result, "Folded SumCheckRelation failed verification");
+        assert!(
+            verification_result,
+            "Folded SumCheckRelation failed verification"
+        );
     }
 }
