@@ -1,5 +1,5 @@
-use ark_ec::{AffineRepr, CurveGroup, Group};
-use ark_ff::{BigInteger, Field, PrimeField, ToConstraintField};
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_ff::{BigInteger, Field, PrimeField};
 use ark_r1cs_std::{
     alloc::{AllocVar, AllocationMode},
     bits::uint8::UInt8,
@@ -8,14 +8,14 @@ use ark_r1cs_std::{
     fields::{fp::FpVar, nonnative::NonNativeFieldVar, FieldVar},
     groups::GroupOpsBounds,
     prelude::CurveVar,
-    R1CSVar,
+    // R1CSVar,
     ToBitsGadget,
     ToBytesGadget,
-    ToConstraintFieldGadget,
+    // ToConstraintFieldGadget,
     // groups::curves::short_weierstrass::ProjectiveVar,
 };
 use ark_serialize::CanonicalSerialize;
-use ark_std::{One, Zero};
+// use ark_std::{Zero};
 // use ark_r1cs_std::groups::curves::twisted_edwards::AffineVar;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, Namespace, SynthesisError};
 
@@ -220,7 +220,7 @@ where
         NIFSGadget::<C, GC>::verify(r, cmT, phi, phiBig, phiBigOut.clone())?;
 
         // φ_{i+1} = H(i+1, z_0, z_i+1, Φ_{i+1})
-        let phiOut_x = AugmentedFCircuit::<C, GC, FC>::phi_x_hash_var(
+        let _phiOut_x = AugmentedFCircuit::<C, GC, FC>::phi_x_hash_var(
             cs.clone(),
             self.poseidon_config.clone(),
             i + FpVar::<ConstraintF<C>>::one(),
@@ -402,7 +402,7 @@ mod test {
     use ark_ec::Group;
     // use ark_ed_on_mnt4_298::{constraints::EdwardsVar, EdwardsProjective};
     use crate::pedersen::Commitment;
-    use ark_mnt4_298::{constraints::G1Var as MNT4G1Var, Fq, Fr, G1Projective as MNT4G1Projective};
+    use ark_mnt4_298::{Fq, Fr};
     use ark_mnt6_298::{constraints::G1Var as MNT6G1Var, G1Projective as MNT6G1Projective};
     use ark_std::One;
 
