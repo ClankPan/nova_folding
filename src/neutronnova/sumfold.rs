@@ -138,7 +138,8 @@ where
         w: Vec<Vec<F>>,
     ) -> (F, Vec<F>, Vec<F>, Vec<F>) {
         // T' = c * eq(rho, rb)^(-1)
-        let T_prime = c * Self::eq(rho, rb).inverse().unwrap();
+        // TODO: inverse???本当に???
+        let T_prime = c * Self::eq(rho, rb);
 
         // u' = \sum eq(rb, i) * u_i
         let mut u_prime = vec![F::zero(); u[0].len()];
@@ -176,5 +177,87 @@ where
         } else {
             F::zero()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::neutronnova::sumcheck::SumCheck;
+    use crate::transcript::poseidon_test_config;
+    use ark_mnt4_298::{Fr, G1Projective}; // scalar field
+    use ark_poly::{
+        multivariate::{SparsePolynomial, SparseTerm, Term},
+        univariate::DensePolynomial,
+        DenseMVPolynomial,
+    };
+    use ark_std::{rand::Rng, UniformRand};
+
+    fn rand_poly<R: Rng>(l: usize, d: usize, rng: &mut R) -> SparsePolynomial<Fr, SparseTerm> {
+        // This method is from the arkworks/algebra/poly/multivariate test:
+        // https://github.com/arkworks-rs/algebra/blob/bc991d44c5e579025b7ed56df3d30267a7b9acac/poly/src/polynomial/multivariate/sparse.rs#L303
+        let mut random_terms = Vec::new();
+        let num_terms = rng.gen_range(1..1000);
+        // For each term, randomly select up to `l` variables with degree
+        // in [1,d] and random coefficient
+        random_terms.push((Fr::rand(rng), SparseTerm::new(vec![])));
+        for _ in 1..num_terms {
+            let term = (0..l)
+                .map(|i| {
+                    if rng.gen_bool(0.5) {
+                        Some((i, rng.gen_range(1..(d + 1))))
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .collect();
+            let coeff = Fr::rand(rng);
+            random_terms.push((coeff, SparseTerm::new(term)));
+        }
+        SparsePolynomial::from_coefficients_slice(l, &random_terms)
+    }
+
+    #[test]
+    fn test_fold_and_verify_sumcheck() {
+        let mut rng = ark_std::test_rng();
+
+        // 1つ目のランダムな多項式を生成
+        let g1 = rand_poly(3, 3, &mut rng);
+        let f1 = rand_poly(3, 2, &mut rng);
+
+        // 2つ目のランダムな多項式を生成
+        let g2 = rand_poly(3, 3, &mut rng);
+        let f2 = rand_poly(3, 2, &mut rng);
+
+        // SumCheckRelationの生成
+        let T1 = Fr::rand(&mut rng);
+        let u1 = vec![Fr::rand(&mut rng); 3];
+        let x1 = vec![Fr::rand(&mut rng)];
+        let w1 = vec![Fr::rand(&mut rng); 3];
+        let sc1 = SumCheckRelation::new(T1, u1, x1, w1, g1, f1);
+
+        let T2 = Fr::rand(&mut rng);
+        let u2 = vec![Fr::rand(&mut rng); 3];
+        let x2 = vec![Fr::rand(&mut rng)];
+        let w2 = vec![Fr::rand(&mut rng); 3];
+        let sc2 = SumCheckRelation::new(T2, u2, x2, w2, g2, f2);
+
+        // 2つのSumCheckRelationを畳み込む
+        let folded_sc = SumFold::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::fold_two_sc(
+            sc1,
+            sc2,
+        );
+
+        // Poseidon設定の取得
+        let poseidon_config = poseidon_test_config::<Fr>();
+        
+        // 畳み込んだ多項式でSumCheckを実行
+        type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
+        let proof = SC::prove(&poseidon_config, folded_sc.g.clone());
+
+        // SumCheckの検証を実行
+        let verification_result = SC::verify(&poseidon_config, proof);
+        assert!(verification_result, "Folded SumCheckRelation failed verification");
     }
 }
