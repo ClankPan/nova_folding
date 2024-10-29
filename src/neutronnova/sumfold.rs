@@ -64,7 +64,7 @@ where
 
         // インスタンスと証拠の畳み込み
         let (T_prime, u_prime, x_prime, w_prime) = Self::compute_instance_witness_pair(
-            c, rho, r_b, sc1.T, u_vec, x_vec, w_vec
+            c, rho, r_b, u_vec, x_vec, w_vec
         );
 
         // 新しいSumCheckRelationを返す
@@ -99,24 +99,30 @@ where
 
             // f_j(b, x)の計算
             for j in 0..f_b_x_sum.len() {
-                f_b_x_sum[j] += Self::eq(i_val, *b) * g_i_eval[j];
+                f_b_x_sum[j] += Self::eq(i_val, *b) * g_i_eval; // インデックスなしの演算に修正
             }
         }
 
         // 3. Q(b) = eq(rho, b) * (\sum F(f_1(b,x), ..., f_t(b,x)))
-        let mut Q_b = F::zero();
-        if Self::eq(*rho, *b) == F::one() {
-            let l = x.len();
-            for x_val in 0..(1 << l) {
-                let mut f_values = vec![F::zero(); f_b_x_sum.len()];
-                for j in 0..f_b_x_sum.len() {
-                    let bit = F::from((x_val >> j) & 1);
-                    f_values[j] = f_b_x_sum[j] * bit;
-                }
+        let mut Q_b = Self::eq(*rho, *b);
+        if Q_b == F::zero() {
+            return (T_sum, Q_b);
+        }
 
-                // f_valuesをVec<F>として評価
-                Q_b += F_poly.evaluate(&f_values);
+        let l = x.len();
+        for x_val in 0..(1 << l) {
+            let mut f_values = vec![F::zero(); f_b_x_sum.len()];
+            for j in 0..f_b_x_sum.len() {
+                let bit = if (x_val >> j) & 1 == 1 {
+                    F::one()
+                } else {
+                    F::zero()
+                };
+                f_values[j] = f_b_x_sum[j] * bit;
             }
+
+            // f_valuesをVec<F>として評価
+            Q_b += F_poly.evaluate(&f_values);
         }
 
         (T_sum, Q_b)
@@ -127,7 +133,6 @@ where
         c: F,
         rho: F,
         rb: F,
-        T: F,
         u: Vec<Vec<F>>,
         x: Vec<F>,
         w: Vec<Vec<F>>,
