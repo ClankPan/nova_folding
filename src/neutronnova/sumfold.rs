@@ -175,6 +175,13 @@ where
             let i_val = F::from(i as u64);
             x_prime += Self::eq(rb, i_val) * x[i];
         }
+        let x_prime = (0..x.len()).into_par_iter().map(|i| {
+            let i_val = F::from(i as u64);
+            Self::eq(rb, i_val) * x[i]
+        }).reduce(
+            || F::zero(),  
+            |acc, item| acc + item
+        );
 
         // w' = \sum eq(rb, i) * w_i
         let mut w_prime = vec![F::zero(); w[0].len()];
