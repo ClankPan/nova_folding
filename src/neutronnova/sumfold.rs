@@ -4,6 +4,7 @@ use ark_poly::{
     DenseMVPolynomial, DenseUVPolynomial, Polynomial,
 };
 use ark_crypto_primitives::sponge::Absorb;
+use rayon::prelude::*;
 
 // SumCheckRelation構造体の定義
 pub struct SumCheckRelation<F: PrimeField, MV: DenseMVPolynomial<F>> {
@@ -82,12 +83,14 @@ where
         w: &[Vec<F>], // w_0 and w_1 (借用)
     ) -> (F, F) {
         // 1. T = \sum eq(i, rho) * T_i
-        let mut T_sum = F::zero();
         let nu = T.len();
-        for i in 0..nu {
+        let T_sum = (0..nu).into_par_iter().map(|i| {
             let i_val = F::from(i as u64);
-            T_sum += Self::eq(i_val, *rho) * T[i];
-        }
+            Self::eq(i_val, *rho) * T[i]
+        }).reduce(
+            || F::zero(),  
+            |acc, item| acc + item
+        );
 
         // 2. f_j(b, x) = \sum eq(i, b) * g_i,j(x)
         let mut f_b_x_sum = vec![F::zero(); F_poly.num_vars()];
