@@ -184,13 +184,15 @@ where
         );
 
         // w' = \sum eq(rb, i) * w_i
-        let mut w_prime = vec![F::zero(); w[0].len()];
-        for j in 0..w[0].len() {
-            for i in 0..nu {
+        let w_prime = (0..w[0].len()).into_par_iter().map(|j| {
+            (0..nu).into_par_iter().map(|i| {
                 let i_val = F::from(i as u64);
-                w_prime[j] += Self::eq(rb, i_val) * w[i][j];
-            }
-        }
+                Self::eq(rb, i_val) * w[i][j]
+            }).reduce(
+                || F::zero(),  
+                |acc, item| acc + item
+            )
+        }).collect();
 
         (T_prime, u_prime, vec![x_prime], w_prime)
     }
