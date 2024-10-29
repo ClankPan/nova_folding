@@ -71,7 +71,7 @@ where
         SumCheckRelation::new(T_prime, u_prime, x_prime, w_prime, sc1.g.clone(), sc1.f.clone())
     }
 
-    /// cとr_bを計算する関数
+    /// 2. Compute (c, rb)
     pub fn compute_c_r(
         rho: &F,
         b: &F,
@@ -128,7 +128,7 @@ where
         (T_sum, Q_b)
     }
 
-    /// インスタンスと証拠のペアを計算する関数
+    // 3. Output the folded instance-witness pair
     pub fn compute_instance_witness_pair(
         c: F,
         rho: F,
