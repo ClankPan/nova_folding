@@ -205,14 +205,14 @@ mod tests {
 
     fn random_sc(poseidon_config: &PoseidonConfig<Fr>) -> SumCheckRelation<Fr, SparsePolynomial<Fr, SparseTerm>> {
         let mut rng = ark_std::test_rng();
-
+    
         // Define the size of the test vectors and polynomials
         let n = 5; // Number of variables/polynomials
-
+    
         // Generate random vectors x and w
         let x: Vec<Fr> = (0..n).map(|_| Fr::rand(&mut rng)).collect();
         let w: Vec<Fr> = (0..n).map(|_| Fr::rand(&mut rng)).collect();
-
+    
         // Construct multivariate polynomials g_i (as SparsePolynomials)
         let g: Vec<SparsePolynomial<Fr, SparseTerm>> = (0..n)
             .map(|_| {
@@ -220,7 +220,7 @@ mod tests {
                 SparsePolynomial::from_coefficients_vec(n, vec![(Fr::one(), term)])
             })
             .collect();
-
+    
         // Construct the polynomial F as a multivariate polynomial
         let mut f_terms = vec![];
         for i in 0..n {
@@ -228,14 +228,23 @@ mod tests {
             f_terms.push((Fr::rand(&mut rng), term));
         }
         let F = SparsePolynomial::from_coefficients_vec(n, f_terms);
-
+    
+        // Calculate the sum T = sum(F(g(x)) for x in {0,1}^ell)
+        // Adjust the evaluation to use vectors of size `n`
         let mut T = Fr::zero();
-        for (g_i, x_i) in g.iter().zip(&x) {
-            let g_x = g_i.evaluate(&vec![*x_i]); 
-            let f_g_x = F.evaluate(&vec![g_x]); 
+        for g_i in &g {
+            // Construct an evaluation vector of length `n` for g_i
+            let eval_point_g = vec![Fr::zero(); n - 1].into_iter().chain(x.iter().cloned()).collect::<Vec<_>>();
+            let g_x = g_i.evaluate(&eval_point_g); 
+    
+            // Construct an evaluation vector of length `n` for F
+            let eval_point_f = vec![g_x; n];
+            let f_g_x = F.evaluate(&eval_point_f);
+    
             T += f_g_x;
         }
-
+    
+        // Create commitments u using Poseidon transcript
         let mut u: Vec<Fr> = vec![];
         for w_i in &w {
             let mut transcript = Transcript::<Fr, G1Projective>::new(&poseidon_config);
