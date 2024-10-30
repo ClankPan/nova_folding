@@ -137,7 +137,7 @@ where
         UV::from_coefficients_vec(univ_coeffs)
     }
 
-    pub fn prove(poseidon_config: &PoseidonConfig<F>, g: MV) -> (F, Vec<UV>, F, Vec<F>, Vec<F>)
+    pub fn prove(poseidon_config: &PoseidonConfig<F>, g: MV) -> (F, Vec<UV>, F)
     where
         <MV as Polynomial<F>>::Point: From<Vec<F>>,
     {
@@ -175,20 +175,16 @@ where
 
         let last_g_eval = g.evaluate(&r.clone().into());
 
-        // w と x を r から分割する
-        let w = r[..v / 2].to_vec(); // wはrの前半部分
-        let x = r[v / 2..].to_vec(); // xはrの後半部分
-
         // ss: intermediate univariate polynomials
-        (T, ss, last_g_eval, w, x)
+        (T, ss, last_g_eval)
     }
 
-    pub fn verify(poseidon_config: &PoseidonConfig<F>, proof: (F, Vec<UV>, F, Vec<F>, Vec<F>)) -> bool {
+    pub fn verify(poseidon_config: &PoseidonConfig<F>, proof: (F, Vec<UV>, F)) -> bool {
         // init transcript
         let mut transcript = Transcript::<F, C>::new(poseidon_config);
         transcript.add(&proof.0);
 
-        let (c, ss, last_g_eval, _, _) = proof;
+        let (c, ss, last_g_eval) = proof;
 
         let mut r: Vec<F> = vec![];
         for (i, s) in ss.iter().enumerate() {
@@ -216,6 +212,31 @@ where
         }
 
         true
+    }
+
+    fn reconstruct_w_x(
+        poseidon_config: &PoseidonConfig<F>,
+        T: F,
+        g: MV,
+        ss: Vec<UV>
+    ) -> (Vec<F>, Vec<F>)
+    {
+        let mut transcript = Transcript::<F, C>::new(poseidon_config);    
+        transcript.add(&T);
+    
+        let v = g.num_vars();
+        let mut r: Vec<F> = vec![];
+    
+        for i in 0..v {
+            let r_i = transcript.get_challenge();
+            r.push(r_i);    
+            transcript.add_vec(ss[i].coeffs());
+        }
+    
+        let w = r[..v / 2].to_vec();  // rの前半部分をwに
+        let x = r[v / 2..].to_vec();  // rの後半部分をxに
+    
+        (w, x)
     }
 }
 
@@ -370,6 +391,27 @@ mod tests {
 
         let proof = SC::prove(&poseidon_config, p);
         // println!("proof.s len {:?}", proof.1.len());
+
+        let v = SC::verify(&poseidon_config, proof);
+        assert!(v);
+    }
+
+    #[test]
+    fn test_reconstruct_w_x_rng() {
+        let mut rng = ark_std::test_rng();
+        // let p = SparsePolynomial::<Fr, SparseTerm>::rand(3, 3, &mut rng);
+        let p = rand_poly(3, 3, &mut rng);
+        // println!("p {:?}", p);
+
+        let poseidon_config = poseidon_test_config::<Fr>();
+        type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
+
+        let proof = SC::prove(&poseidon_config, p.clone());
+        // println!("proof.s len {:?}", proof.1.len());
+        let (w, x) = SC::reconstruct_w_x(&poseidon_config, proof.clone().0, p.clone(), proof.clone().1);
+        let last_g_eval = p.evaluate(&[w, x].concat());
+
+        assert_eq!(last_g_eval, proof.2);
 
         let v = SC::verify(&poseidon_config, proof);
         assert!(v);
