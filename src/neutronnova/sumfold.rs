@@ -6,14 +6,15 @@ use ark_poly::{
 use ark_crypto_primitives::sponge::Absorb;
 use crate::utils::{multipoly_linear_combination};
 use crate::neutronnova::sumcheck::{SumCheckProof};
+use ark_std::{rand::Rng, UniformRand, One, Zero};
 
 #[derive(Debug)]
-pub struct SumCheckRelation<F: PrimeField, MV: DenseMVPolynomial<F>> {
+pub struct SumCheckRelation<F: PrimeField, MV: DenseMVPolynomial<F>,  UV: DenseUVPolynomial<F>> {
     pub T: F,          // Sum T
     pub w: Vec<F>, // witness w (行列)
     pub x: Vec<F>,      // input x (ベクトル)
     pub u: Vec<F>,      // commitments u
-    pub g: Vec<MV>,     // 構成された多項式 g_i
+    pub g: Vec<UV>,     // 構成された多項式 g_i
     pub F: MV,          // 多項式 F
 }
 
@@ -53,7 +54,44 @@ where
         (T_prime, q_prime)
     }
 
-    // pub fn fond
+    // pub fn fold_structured(
+    //     sc1: SumCheckRelation<F, MV>,
+    //     sc2: SumCheckRelation<F, MV>,
+    //     s: usize, m: usize, t: usize, l: usize,
+    // ) -> SumCheckRelation {
+    //     let n = 2;
+    //     let v = log2(n);
+
+    //     let T_vec = vec![sc1.T, sc2.T];
+    //     let G_vec = vec![sc1.g.clone(), sc2.g.clone()];
+    //     let F_poly = sc1.f.clone();
+    //     let u_vec = vec![sc1.u.clone(), sc2.u.clone()];
+    //     let x_vec = vec![sc1.x.clone(), sc2.x.clone()];
+    //     let w_vec = vec![sc1.w.clone(), sc2.w.clone()];
+
+    //     let rho = F::rand(&mut ark_std::test_rng());
+
+    //     let mut T_sum = F::zero();
+
+    //     let mut f_values = vec![];
+    //     // random zero or one
+    //     let i_val = sample_zero_or_one(&mut ark_std::test_rng());
+    //     for i in 0..n {
+    //         let f_j = eq(i_val, )
+    //     }
+    // }
+
+    // fn sample_zero_or_one<R: Rng>(rng: &mut R) -> F {
+    //     // Generate a random field element
+    //     let random_elem = F::rand(rng);
+    
+    //     // Map to 0 or 1 based on the least significant bit (LSB)
+    //     if random_elem.into_bigint().is_odd() {
+    //         F::one() // Return 1 if the LSB is 1
+    //     } else {
+    //         F::zero() // Return 0 if the LSB is 0
+    //     }
+    // }
 
     // pub fn fold_two_sc(
     //     sc1: SumCheckRelation<F, MV>,
@@ -181,14 +219,14 @@ where
     //     (T_prime, u_prime, vec![x_prime], w_prime)
     // }
 
-    // /// check if a == b
-    // fn eq(a: F, b: F) -> F {
-    //     if a == b {
-    //         F::one()
-    //     } else {
-    //         F::zero()
-    //     }
-    // }
+    /// check if a == b
+    fn eq(a: F, b: F) -> F {
+        if a == b {
+            F::one()
+        } else {
+            F::zero()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -209,21 +247,22 @@ mod tests {
     fn random_sc<R: Rng>(
         poseidon_config: &PoseidonConfig<Fr>, rng: &mut R,
         s: usize, m: usize, t: usize, l: usize,
-    ) -> SumCheckRelation<Fr, SparsePolynomial<Fr, SparseTerm>> {        
+    ) -> SumCheckRelation<Fr, SparsePolynomial<Fr, SparseTerm>, DensePolynomial<Fr>> {        
         // Generate a matrix w with dimensions s x n
         let w: Vec<Fr> = (0..s).map(|_| Fr::rand(rng)).collect();
         // Generate a vector x with m elements
         let x: Vec<Fr> = (0..m).map(|_| Fr::rand(rng)).collect();
     
-        // Construct the linear function G(w, x) as a multivariate polynomial with l variables
-        let g: Vec<SparsePolynomial<Fr, SparseTerm>> = (0..t)
+        // Construct the linear function G(w, x) as a univariate polynomial with l variables
+        let g: Vec<DensePolynomial<Fr>> = (0..t)
             .map(|_| {
-                let mut terms = vec![];
-                for i in 0..l {
-                    let term = SparseTerm::new(vec![(i, 1)]); // Example term x_i^1
-                    terms.push((Fr::rand(rng), term));
-                }
-                SparsePolynomial::from_coefficients_vec(l, terms)
+                // Generate random coefficients for the univariate polynomial
+                let coeffs: Vec<Fr> = (0..=l) // Degree l
+                    .map(|_| Fr::rand(rng)) // Random coefficient
+                    .collect();
+
+                // Create the univariate polynomial with the generated coefficients
+                DensePolynomial::from_coefficients_vec(coeffs)
             })
             .collect();
     
@@ -237,24 +276,9 @@ mod tests {
     
         // Calculate the sum T = sum(F(g(x)) for x in {0,1}^l)
         let mut T = Fr::zero();
-        for x_subset in 0..(1 << l) {
-            // Create a binary vector from x_subset for evaluation
-            let eval_point_x: Vec<Fr> = (0..l)
-                .map(|i| if (x_subset & (1 << i)) != 0 { Fr::one() } else { Fr::zero() })
-                .collect();
-    
-            // Evaluate each g_i at eval_point_x
-            let mut g_eval = vec![];
-            for g_i in &g {
-                let g_x = g_i.evaluate(&eval_point_x);
-                g_eval.push(g_x);
-            }
-    
-            // Evaluate F at g_eval
-            let f_g_x = F.evaluate(&g_eval);
-    
-            // Add to the total sum T
-            T += f_g_x;
+        for i in 0..(2_u64.pow(l as u32)) {
+            let g_x = g.iter().map(|g_i| g_i.evaluate(&Fr::from(i))).collect();
+            T += F.evaluate(&g_x);
         }
     
         // Create commitments u using Poseidon transcript
