@@ -14,6 +14,13 @@ use ark_crypto_primitives::sponge::{poseidon::PoseidonConfig, Absorb};
 
 use crate::transcript::Transcript;
 
+#[derive(Debug)]
+pub struct SumCheckProof<F: PrimeField, UV: Polynomial<F> + DenseUVPolynomial<F>> {
+    pub T: F,
+    pub ss: Vec<UV>,
+    pub last_g_eval: F,
+}
+
 pub struct Point<F: PrimeField> {
     _f: PhantomData<F>,
 }
@@ -137,7 +144,7 @@ where
         UV::from_coefficients_vec(univ_coeffs)
     }
 
-    pub fn prove(poseidon_config: &PoseidonConfig<F>, g: MV) -> (F, Vec<UV>, F)
+    pub fn prove(poseidon_config: &PoseidonConfig<F>, g: MV) -> SumCheckProof<F, UV>
     where
         <MV as Polynomial<F>>::Point: From<Vec<F>>,
     {
@@ -176,21 +183,19 @@ where
         let last_g_eval = g.evaluate(&r.clone().into());
 
         // ss: intermediate univariate polynomials
-        (T, ss, last_g_eval)
+        SumCheckProof { T, ss, last_g_eval }
     }
 
-    pub fn verify(poseidon_config: &PoseidonConfig<F>, proof: (F, Vec<UV>, F)) -> bool {
+    pub fn verify(poseidon_config: &PoseidonConfig<F>, proof: SumCheckProof<F, UV>) -> bool {
         // init transcript
         let mut transcript = Transcript::<F, C>::new(poseidon_config);
-        transcript.add(&proof.0);
-
-        let (c, ss, last_g_eval) = proof;
+        transcript.add(&proof.T);
 
         let mut r: Vec<F> = vec![];
-        for (i, s) in ss.iter().enumerate() {
+        for (i, s) in proof.ss.clone().iter().enumerate() {
             // TODO check degree
             if i == 0 {
-                if c != s.evaluate(&F::zero()) + s.evaluate(&F::one()) {
+                if proof.T != s.evaluate(&F::zero()) + s.evaluate(&F::one()) {
                     return false;
                 }
                 let r_i = transcript.get_challenge();
@@ -201,13 +206,13 @@ where
 
             let r_i = transcript.get_challenge();
             r.push(r_i);
-            if ss[i - 1].evaluate(&r[i - 1]) != s.evaluate(&F::zero()) + s.evaluate(&F::one()) {
+            if proof.ss[i - 1].evaluate(&r[i - 1]) != s.evaluate(&F::zero()) + s.evaluate(&F::one()) {
                 return false;
             }
             transcript.add_vec(s.coeffs());
         }
         // last round
-        if ss[ss.len() - 1].evaluate(&r[r.len() - 1]) != last_g_eval {
+        if proof.ss[proof.ss.len() - 1].evaluate(&r[r.len() - 1]) != proof.last_g_eval {
             return false;
         }
 
@@ -347,7 +352,7 @@ mod tests {
         type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
 
         let proof = SC::prove(&poseidon_config, p);
-        assert_eq!(proof.0, Fr::from(12_u32));
+        assert_eq!(proof.T, Fr::from(12_u32));
         // println!("proof {:?}", proof);
 
         let v = SC::verify(&poseidon_config, proof);
@@ -408,10 +413,10 @@ mod tests {
 
         let proof = SC::prove(&poseidon_config, p.clone());
         // println!("proof.s len {:?}", proof.1.len());
-        let (w, x) = SC::reconstruct_w_x(&poseidon_config, proof.clone().0, p.clone(), proof.clone().1);
+        let (w, x) = SC::reconstruct_w_x(&poseidon_config, proof.T.clone(), p.clone(), proof.ss.clone());
         let last_g_eval = p.evaluate(&[w, x].concat());
 
-        assert_eq!(last_g_eval, proof.2);
+        assert_eq!(last_g_eval, proof.last_g_eval);
 
         let v = SC::verify(&poseidon_config, proof);
         assert!(v);

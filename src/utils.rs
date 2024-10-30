@@ -7,6 +7,9 @@
 // - vector sub
 use ark_ec::CurveGroup;
 use ark_ff::fields::PrimeField;
+use ark_poly::{
+    DenseMVPolynomial, DenseUVPolynomial,
+};
 use core::ops::{Add, Sub};
 use std::fmt;
 
@@ -128,6 +131,38 @@ pub fn to_F_vec<F: PrimeField>(z: Vec<usize>) -> Vec<F> {
         r[i] = F::from(z[i] as u64);
     }
     r
+}
+
+pub fn poly_linear_combination<F: PrimeField, UV: DenseUVPolynomial<F>>(
+    p1: &UV,
+    p2: &UV,
+    rho: F,
+) -> UV {
+    let mut result_coeffs = p1.coeffs().to_vec();
+
+    for (i, coeff) in p2.coeffs().iter().enumerate() {
+        if i < result_coeffs.len() {
+            result_coeffs[i] += *coeff * rho;
+        } else {
+            result_coeffs.push(*coeff * rho);
+        }
+    }
+
+    UV::from_coefficients_vec(result_coeffs)
+}
+
+pub fn multipoly_linear_combination<F: PrimeField, MV: DenseMVPolynomial<F>>(
+    q1: &MV,
+    q2: &MV,
+    rho: F,
+) -> MV {
+    let mut result_terms = q1.terms().to_vec();
+    for (coeff, term) in q2.terms() {
+        let scaled_coeff = *coeff * rho;
+        result_terms.push((scaled_coeff, term.clone()));
+    }
+
+    MV::from_coefficients_slice(q1.num_vars(), &result_terms)
 }
 
 #[cfg(test)]
