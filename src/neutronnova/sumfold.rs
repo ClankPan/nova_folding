@@ -10,7 +10,7 @@ use crate::neutronnova::sumcheck::{SumCheckProof};
 #[derive(Debug)]
 pub struct SumCheckRelation<F: PrimeField, MV: DenseMVPolynomial<F>> {
     pub T: F,          // Sum T
-    pub w: Vec<Vec<F>>, // witness w (行列)
+    pub w: Vec<F>, // witness w (行列)
     pub x: Vec<F>,      // input x (ベクトル)
     pub u: Vec<F>,      // commitments u
     pub g: Vec<MV>,     // 構成された多項式 g_i
@@ -38,7 +38,7 @@ impl<
 where
     <C as CurveGroup>::BaseField: Absorb,
 {
-    pub fn fold_unstructed(
+    pub fn fold_unstructured(
         sc1: SumCheckProof<F, UV>,
         sc2: SumCheckProof<F, UV>,
         q1: MV,
@@ -52,6 +52,8 @@ where
         
         (T_prime, q_prime)
     }
+
+    // pub fn fond
 
     // pub fn fold_two_sc(
     //     sc1: SumCheckRelation<F, MV>,
@@ -206,13 +208,10 @@ mod tests {
 
     fn random_sc<R: Rng>(
         poseidon_config: &PoseidonConfig<Fr>, rng: &mut R,
-        n: usize, s: usize, m: usize, t: usize, l: usize,
+        s: usize, m: usize, t: usize, l: usize,
     ) -> SumCheckRelation<Fr, SparsePolynomial<Fr, SparseTerm>> {        
         // Generate a matrix w with dimensions s x n
-        let w: Vec<Vec<Fr>> = (0..s)
-            .map(|_| (0..n).map(|_| Fr::rand(rng)).collect())
-            .collect();
-    
+        let w: Vec<Fr> = (0..s).map(|_| Fr::rand(rng)).collect();
         // Generate a vector x with m elements
         let x: Vec<Fr> = (0..m).map(|_| Fr::rand(rng)).collect();
     
@@ -260,13 +259,11 @@ mod tests {
     
         // Create commitments u using Poseidon transcript
         let mut u: Vec<Fr> = vec![];
-        for w_row in &w {
-            for w_i in w_row {
-                let mut transcript = Transcript::<Fr, G1Projective>::new(&poseidon_config);
-                transcript.add(w_i);
-                let u_i = transcript.get_challenge();
-                u.push(u_i);
-            }
+        for w_i in &w {
+            let mut transcript = Transcript::<Fr, G1Projective>::new(&poseidon_config);
+            transcript.add(w_i);
+            let u_i = transcript.get_challenge();
+            u.push(u_i);
         }
     
         SumCheckRelation {
@@ -305,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fold_unstructed_sumchecks() {
+    fn test_fold_unstructured_sumchecks() {
         type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
         type SF = SumFold<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
         let mut rng = ark_std::test_rng();
@@ -315,7 +312,7 @@ mod tests {
         let q2 = rand_poly(3, 3, &mut rng);
         let sc2 = SC::prove(&poseidon_config, q2.clone());
 
-        let (T_prime, q_prime) = SF::fold_unstructed(sc1, sc2, q1, q2);
+        let (T_prime, q_prime) = SF::fold_unstructured(sc1, sc2, q1, q2);
         let proof = SC::prove(&poseidon_config, q_prime.clone());
         assert_eq!(proof.T, T_prime, "Folded different SumCheckRelation failed T equality check");
 
@@ -337,15 +334,16 @@ mod tests {
         let q2 = rand_poly(3, 3, &mut rng);
         let sc2 = SC::prove(&poseidon_config, q2.clone());
 
-        let (T_prime, q_prime) = SF::fold_unstructed(sc1, sc2, q1, q2);
+        let (T_prime, q_prime) = SF::fold_unstructured(sc1, sc2, q1, q2);
         let proof = SC::prove(&poseidon_config, q_prime.clone());
         assert!(T_prime != proof.T, "Folded different SumCheckRelation failed T equality check");
     }
 
     #[test]
     fn test_fold_structured_sumchecks() {
-        // w: n*s matrix
-        let n = 3;
+        // n: number of instances
+        let n = 2;
+        // w: s vector
         let s = 3;
         // x: m vector
         let m = 3;
@@ -357,8 +355,8 @@ mod tests {
 
         let mut rng = ark_std::test_rng();
         let poseidon_config = poseidon_test_config::<Fr>();
-        let sc1 = random_sc(&poseidon_config, &mut rng, n, s, m, t, l);
-        let sc2 = random_sc(&poseidon_config, &mut rng, n, s, m, t, l);
+        let sc1 = random_sc(&poseidon_config, &mut rng, s, m, t, l);
+        let sc2 = random_sc(&poseidon_config, &mut rng, s, m, t, l);
         println!("sc1.T: {:?}", sc1.T);
         println!("sc2.T: {:?}", sc2.T);
     }
