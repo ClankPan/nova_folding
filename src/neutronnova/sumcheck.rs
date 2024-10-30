@@ -214,7 +214,7 @@ where
         true
     }
 
-    fn reconstruct_w_x(
+    pub fn reconstruct_w_x(
         poseidon_config: &PoseidonConfig<F>,
         T: F,
         g: MV,

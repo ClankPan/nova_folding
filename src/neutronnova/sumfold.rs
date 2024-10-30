@@ -185,13 +185,36 @@ mod tests {
     use super::*;
     use crate::neutronnova::sumcheck::SumCheck;
     use crate::transcript::poseidon_test_config;
+    use crate::transcript::Transcript;
     use ark_mnt4_298::{Fr, G1Projective};
     use ark_poly::{
         multivariate::{SparsePolynomial, SparseTerm, Term},
         univariate::DensePolynomial,
         DenseMVPolynomial,
     };
-    use ark_std::{rand::Rng, UniformRand, One};
+    use ark_crypto_primitives::sponge::{poseidon::PoseidonConfig};
+    use ark_std::{rand::Rng, UniformRand}; // One
+
+    pub fn sc_from_q(
+        poseidon_config: &PoseidonConfig<Fr>,
+        q: SparsePolynomial<Fr, SparseTerm>,
+        f: SparsePolynomial<Fr, SparseTerm>,
+        g: SparsePolynomial<Fr, SparseTerm>,
+    ) -> SumCheckRelation<Fr, SparsePolynomial<Fr, SparseTerm>> {
+        type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
+        let (T, ss, _) = SC::prove(&poseidon_config, q.clone());
+        let (w, x) = SC::reconstruct_w_x(&poseidon_config, T, q.clone(), ss.clone());
+
+        let mut u: Vec<Fr> = vec![];
+        for i in 0..w.len() {
+            let mut transcript = Transcript::<Fr, G1Projective>::new(poseidon_config);
+            transcript.add(&x[i]);
+            let u_i = transcript.get_challenge();
+            u.push(u_i);
+        }
+        
+        SumCheckRelation::<Fr, SparsePolynomial<Fr, SparseTerm>>::new(T, u, x, w, g, f)
+    }
 
     fn rand_poly<R: Rng>(
         l: usize,
@@ -260,31 +283,16 @@ mod tests {
 
     #[test]
     fn test_fold_two_different_sumchecks() {
+        type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
+        type SF = SumFold<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
         let mut rng = ark_std::test_rng();
         let poseidon_config = poseidon_test_config::<Fr>();
-
         let (q1, g1, f1) = rand_poly(3, 3, &mut rng);
-        let (T1, _, _, w1, x1) = SumCheck::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::prove(
-            &poseidon_test_config::<Fr>(),
-            q1.clone(),
-        );
-        let u1 = vec![Fr::rand(&mut rng); 3];
-        let sc1 = SumCheckRelation::new(T1, u1, x1, w1, g1, f1);
-
+        let sc1 = sc_from_q(&poseidon_config, q1.clone(), f1.clone(), g1.clone());
         let (q2, g2, f2) = rand_poly(3, 3, &mut rng);
-        let (T2, _, _, w2, x2) = SumCheck::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::prove(
-            &poseidon_test_config::<Fr>(),
-            q2.clone(),
-        );
-        let u2 = vec![Fr::rand(&mut rng); 3];
-        let sc2 = SumCheckRelation::new(T2, u2, x2, w2, g2, f2);
+        let sc2 = sc_from_q(&poseidon_config, q2.clone(), f2.clone(), g2.clone());
 
-        let folded_sc = SumFold::<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>::fold_two_sc(
-            sc1,
-            sc2,
-        );
-
-        type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
+        let folded_sc = SF::fold_two_sc(sc1, sc2);
         let proof = SC::prove(&poseidon_config, q1.clone());
 
         assert_eq!(proof.0, folded_sc.T, "Folded different SumCheckRelation failed T equality check");
