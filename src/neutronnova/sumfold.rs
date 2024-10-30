@@ -10,17 +10,11 @@ use crate::neutronnova::sumcheck::{SumCheckProof};
 #[derive(Debug)]
 pub struct SumCheckRelation<F: PrimeField, MV: DenseMVPolynomial<F>> {
     pub T: F,          // Sum T
-    pub u: Vec<F>,     // instance u
-    pub x: Vec<F>,     // input x
-    pub w: Vec<F>,     // witness w
-    pub g: MV,         // multilinear polynomial g
-    pub f: MV,         // polynomial f
-}
-
-impl<F: PrimeField, MV: DenseMVPolynomial<F>> SumCheckRelation<F, MV> {
-    pub fn new(T: F, u: Vec<F>, x: Vec<F>, w: Vec<F>, g: MV, f: MV) -> Self {
-        SumCheckRelation { T, u, x, w, g, f }
-    }
+    pub w: Vec<F>, // witness w (行列)
+    pub x: Vec<F>,      // input x (ベクトル)
+    pub u: Vec<F>,      // commitments u
+    pub g: Vec<MV>,     // 構成された多項式 g_i
+    pub F: MV,          // 多項式 F
 }
 
 pub struct SumFold<
@@ -199,14 +193,66 @@ where
 mod tests {
     use super::*;
     use crate::neutronnova::sumcheck::SumCheck;
-    use crate::transcript::poseidon_test_config;
+    use crate::transcript::{poseidon_test_config, Transcript};
     use ark_mnt4_298::{Fr, G1Projective};
     use ark_poly::{
         multivariate::{SparsePolynomial, SparseTerm, Term},
         univariate::DensePolynomial,
+        Polynomial,
     };
-    use ark_std::{rand::Rng, UniformRand, One};
-    // use ark_crypto_primitives::sponge::{poseidon::PoseidonConfig};
+    use ark_std::{rand::Rng, UniformRand, One, Zero};
+    use ark_crypto_primitives::sponge::{poseidon::PoseidonConfig};
+
+    fn random_sc(poseidon_config: &PoseidonConfig<Fr>) -> SumCheckRelation<Fr, SparsePolynomial<Fr, SparseTerm>> {
+        let mut rng = ark_std::test_rng();
+
+        // Define the size of the test vectors and polynomials
+        let n = 5; // Number of variables/polynomials
+
+        // Generate random vectors x and w
+        let x: Vec<Fr> = (0..n).map(|_| Fr::rand(&mut rng)).collect();
+        let w: Vec<Fr> = (0..n).map(|_| Fr::rand(&mut rng)).collect();
+
+        // Construct multivariate polynomials g_i (as SparsePolynomials)
+        let g: Vec<SparsePolynomial<Fr, SparseTerm>> = (0..n)
+            .map(|_| {
+                let term = SparseTerm::new(vec![(0, 1)]); // Example term x_0^1
+                SparsePolynomial::from_coefficients_vec(n, vec![(Fr::one(), term)])
+            })
+            .collect();
+
+        // Construct the polynomial F as a multivariate polynomial
+        let mut f_terms = vec![];
+        for i in 0..n {
+            let term = SparseTerm::new(vec![(i, 1)]); // Example term x_i^1
+            f_terms.push((Fr::rand(&mut rng), term));
+        }
+        let F = SparsePolynomial::from_coefficients_vec(n, f_terms);
+
+        let mut T = Fr::zero();
+        for (g_i, x_i) in g.iter().zip(&x) {
+            let g_x = g_i.evaluate(&vec![*x_i]); 
+            let f_g_x = F.evaluate(&vec![g_x]); 
+            T += f_g_x;
+        }
+
+        let mut u: Vec<Fr> = vec![];
+        for w_i in &w {
+            let mut transcript = Transcript::<Fr, G1Projective>::new(&poseidon_config);
+            transcript.add(w_i);
+            let u_i = transcript.get_challenge();
+            u.push(u_i);
+        }
+
+        SumCheckRelation {
+            T,
+            w: w.clone(),
+            x: x.clone(),
+            u: u.clone(),
+            g: g.clone(),
+            F: F.clone(),
+        }
+    }
 
     fn rand_poly<R: Rng>(l: usize, d: usize, rng: &mut R) -> SparsePolynomial<Fr, SparseTerm> {
         // This method is from the arkworks/algebra/poly/multivariate test:
@@ -269,5 +315,14 @@ mod tests {
         let (T_prime, q_prime) = SF::fold_unstructed(sc1, sc2, q1, q2);
         let proof = SC::prove(&poseidon_config, q_prime.clone());
         assert!(T_prime != proof.T, "Folded different SumCheckRelation failed T equality check");
+    }
+
+    #[test]
+    fn test_fold_structured_sumchecks() {
+        let poseidon_config = poseidon_test_config::<Fr>();
+        let sc1 = random_sc(&poseidon_config);
+        let sc2 = random_sc(&poseidon_config);
+        println!("sc1.T: {:?}", sc1.T);
+        println!("sc2.T: {:?}", sc2.T);
     }
 }
