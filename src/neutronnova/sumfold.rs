@@ -205,7 +205,7 @@ mod tests {
         multivariate::{SparsePolynomial, SparseTerm, Term},
         univariate::DensePolynomial,
     };
-    use ark_std::{rand::Rng, UniformRand};
+    use ark_std::{rand::Rng, UniformRand, One};
     // use ark_crypto_primitives::sponge::{poseidon::PoseidonConfig};
 
     fn rand_poly<R: Rng>(l: usize, d: usize, rng: &mut R) -> SparsePolynomial<Fr, SparseTerm> {
@@ -250,5 +250,24 @@ mod tests {
 
         let verification_result = SC::verify(&poseidon_config, proof);
         assert!(verification_result, "Folded different SumCheckRelation failed verification");
+    }
+
+    #[test]
+    fn test_abnormal_fold_unstructed_sumchecks() {
+        type SC = SumCheck<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
+        type SF = SumFold<Fr, G1Projective, DensePolynomial<Fr>, SparsePolynomial<Fr, SparseTerm>>;
+        let mut rng = ark_std::test_rng();
+        let poseidon_config = poseidon_test_config::<Fr>();
+        let q1 = rand_poly(3, 3, &mut rng);
+        let mut sc1 = SC::prove(&poseidon_config, q1.clone());
+        sc1.T += Fr::one();
+        let verification_result_sc1 = SC::verify(&poseidon_config, sc1.clone());
+        assert!(!verification_result_sc1, "Abnormal SumCheckRelation failed verification");
+        let q2 = rand_poly(3, 3, &mut rng);
+        let sc2 = SC::prove(&poseidon_config, q2.clone());
+
+        let (T_prime, q_prime) = SF::fold_unstructed(sc1, sc2, q1, q2);
+        let proof = SC::prove(&poseidon_config, q_prime.clone());
+        assert!(T_prime != proof.T, "Folded different SumCheckRelation failed T equality check");
     }
 }

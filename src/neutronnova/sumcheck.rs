@@ -14,7 +14,7 @@ use ark_crypto_primitives::sponge::{poseidon::PoseidonConfig, Absorb};
 
 use crate::transcript::Transcript;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SumCheckProof<F: PrimeField, UV: Polynomial<F> + DenseUVPolynomial<F>> {
     pub T: F,
     pub ss: Vec<UV>,
