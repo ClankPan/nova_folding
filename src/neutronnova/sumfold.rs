@@ -81,18 +81,6 @@ where
     //     }
     // }
 
-    // fn sample_zero_or_one<R: Rng>(rng: &mut R) -> F {
-    //     // Generate a random field element
-    //     let random_elem = F::rand(rng);
-    
-    //     // Map to 0 or 1 based on the least significant bit (LSB)
-    //     if random_elem.into_bigint().is_odd() {
-    //         F::one() // Return 1 if the LSB is 1
-    //     } else {
-    //         F::zero() // Return 0 if the LSB is 0
-    //     }
-    // }
-
     // pub fn fold_two_sc(
     //     sc1: SumCheckRelation<F, MV>,
     //     sc2: SumCheckRelation<F, MV>,
@@ -374,7 +362,7 @@ mod tests {
         // F: t variable polynomial
         // so number of g vector is also t
         let t = 5;
-        // g: l variable polynomial
+        // G: l variable polynomial
         let l = n + s;
 
         let mut rng = ark_std::test_rng();
